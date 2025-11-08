@@ -1,181 +1,60 @@
-# GAIA – Goal-oriented Autonomous Intelligence for Adaptive GUI Testing
+# 🤖 GAIA: Goal-oriented AI Test Agent
 
-GAIA는 “기획서만 주어지면 브라우저 테스트 플랜부터 실행·보고까지 자동으로 만들어 준다”는 목표로 설계된 MVP다. GPT 기반 플래너가 UI 테스트 시나리오와 체크리스트를 만들고, 적응형 스케줄러와 GPT-5 오케스트레이터가 Playwright MCP를 통해 실제 사이트를 탐색한다.
+**GAIA (Goal-oriented Autonomous Intelligence for Adaptive GUI Testing)**는 사람의 '목표'와 '기획서'를 이해하여 테스트 전략을 스스로 수립하고, 코드와 이미지를 결합한 하이브리드 검증 방식으로 앱의 품질을 검사하는 차세대 AI 테스트 에이전트입니다.
 
-## 왜 GAIA인가?
-- **Spec → Test까지 One-click**: PDF 기획서를 투입하면 100+ 시나리오와 25개 체크리스트가 자동 생성된다.
-- **Adaptive Execution**: 우선순위·DOM 변화·실패 히스토리를 반영하는 스케줄러가 가장 가치 있는 시나리오부터 반복 실행한다.
-- **Investor-ready UX**: PySide6 GUI가 실시간 로그, 스크린샷, 커서 오버레이, 부분 성공률을 보여줘 비개발자도 데모를 진행할 수 있다.
+## ✨ 핵심 컨셉
 
-## 시스템 아키텍처
-```
-          ┌──────────────┐      ┌──────────────┐
-          │  Phase 1     │      │ Adaptive     │
-Planning  │ PDF Loader + │──┬──▶│ Scheduler    │
-PDF →     │ Agent Builder│  │   │ (priority PQ)│
-Scenario  └──────────────┘  │   └──────┬───────┘
-                             │          │
-                             │    Prioritized plan
-                             ▼          │
-                        ┌───────────────┴────────────────┐
-                        │ Phase 4 Execution Layer        │
-                        │ ┌────────────────────────────┐ │
-                        │ │ Master Orchestrator (GPT-5)│ │
-                        │ ├────────────────────────────┤ │
-                        │ │ Intelligent Orchestrator   │ │
-                        │ │  (GPT-5-mini Vision +      │ │
-                        │ │   selector/embedding cache)│ │
-                        │ └────────────────────────────┘ │
-                        │            │                   │
-                        └────────────┼───────────────────┘
-                                     │ MCP Actions
-                         ┌───────────▼──────────┐
-                         │ Playwright MCP Host  │
-                         │  (FastAPI + Chromium)│
-                         └───────────┬──────────┘
-                                     │ DOM/Screenshot
-                     ┌───────────────▼─────────────────┐
-                     │ GUI + Checklist Tracker + Report│
-                     └─────────────────────────────────┘
-```
+GAIA는 기존 QA 자동화의 패러다임을 두 가지 혁신으로 바꿉니다:
 
-### End-to-End Flow
-1. **Phase 1 – Spec Analysis**
-   - `pdf_loader.PDFLoader`가 PDF 텍스트를 정제하고, `agent_client.AgentServiceClient`가 OpenAI Agent Builder 워크플로(`gpt-4o` 기본)를 호출해 `TestScenario` + 체크리스트를 JSON으로 받는다.
-2. **Adaptive Scheduler**
-   - `scheduler/adaptive_scheduler.py`가 MUST/SHOULD/MAY, DOM 신규 요소 여부, URL 다양성, 최근 실패 기록 등으로 점수를 계산 후 우선순위 큐에 담아 스트리밍한다.
-3. **Phase 4 – Autonomous Execution**
-   - `master_orchestrator.py`(GPT-5)가 사이트 맵을 만들고 시나리오를 페이지별로 배분한다.
-   - `intelligent_orchestrator.py`(GPT-5-mini Vision)가 DOM 스냅샷+스크린샷을 분석해 액션을 결정, 셀렉터/임베딩 캐시를 재사용한다.
-   - Smart Navigation, Aggressive Text Matching, Semantic Embedding Matching이 결합되어 페이지 이동과 요소 탐색이 자동화된다.
-4. **Playwright MCP Host**
-   - `phase4/mcp_host.py`(FastAPI + Chromium)가 `analyze_page`, `execute_step`를 제공하며 150개 DOM 요소 목록과 스크린샷을 스트리밍한다.
-5. **Tracking & Reporting**
-   - `tracker.ChecklistTracker`가 커버리지를 업데이트하고, GUI(`gaia/src/gui`)가 실시간 로그·스크린샷·Cursor overlay·4단계 결과(성공/부분/실패/스킵)를 시각화한다.
+### 🎯 목표 지향 자동화 (Goal-oriented Automation)
+"로그인 테스트해 줘"와 같은 자연어 명령이나 기획서(PDF)를 분석하여 테스트 시나리오를 AI가 직접 생성합니다. 더 이상 깨지기 쉬운 스크립트를 사람이 직접 작성하고 유지보수할 필요가 없습니다.
 
-## 컴포넌트 상세
+### 🔀 하이브리드 검증 (Hybrid Verification)
+앱의 설계도(DOM)를 분석하는 코드 기반 접근법의 속도/정확성과, 사용자의 눈(Vision)으로 직접 확인하는 이미지 기반 접근법의 신뢰성을 결합했습니다. 이를 통해 기존 방식들이 놓치던 치명적인 버그까지 잡아냅니다.
 
-### Phase 1 – Planner & Checklists
-- **PDF Loader**: 섹션·목차 구조를 유지한 채 텍스트를 정제.
-- **Agent Builder Client**: OpenAI Agent Workflow(`GAIA_WORKFLOW_ID`)를 호출해 100개 이상의 시나리오와 25개 체크리스트를 생성.
-- **Fallback Plans**: API 실패 시 `artifacts/plans/*.json`에 있는 플랜을 GUI에서 즉시 재사용 가능.
+## 👥 팀 구성 및 역할
 
-### Adaptive Scheduler
-- **Priority Queue**: MUST/SHOULD/MAY + DOM 신규성 + 최근 실패를 점수화해 가장 가치 있는 테스트부터 실행.
-- **Historical Awareness**: 같은 URL의 반복 실패를 감지해 재시도 우선순위를 높임.
-- **Streaming Interface**: Phase 4 오케스트레이터가 큐에서 시나리오 배치를 받아 실행.
+| 역할 | 담당자 | 주요 임무 |
+|------|------|------|
+| 🧠 **AI 설계자 & 백엔드 리드** | 장진형 | GAIA의 핵심 두뇌인 AI 플래닝 에이전트와 백엔드 서버를 개발합니다. 기획서 분석, 자연어 이해, 테스트 계획 수립 등 AI 관련 로직을 전담합니다. |
+| 🎨 **프론트엔드 & UI/UX 리드** | 변영승 | 사용자가 직접 마주하는 GAIA Agent 데스크톱 애플리케이션의 모든 화면을 설계하고 개발합니다. 테스트 결과 리포트 시각화를 포함한 UI/UX를 책임집니다. |
+| 🏗️ **시스템 설계자 & 데브옵스 리드** | 심창완 | GAIA의 전체 시스템 아키텍처를 설계하고, 클라우드 인프라를 구축 및 관리합니다. 로컬 에이전트와 클라우드 서버 간의 안정적인 통신과 배포 자동화를 담당합니다. |
+| 🦾 **자동화 엔진 개발자** | 박기주 | GAIA의 손과 발이 되어 실제 웹 브라우저를 제어하는 자동화 스크립트를 개발합니다. '버튼 클릭', '텍스트 입력' 등 AI가 수립한 계획을 실행하는 모듈을 구현합니다. |
 
-### Phase 4 Execution Layer
-- **Master Orchestrator (GPT-5)**: 다중 페이지 탐색, Smart Navigation 메모리, 시나리오 배분.
-- **Intelligent Orchestrator (GPT-5-mini Vision)**:
-  - DOM+Screenshot 병합 분석으로 셀렉터 선택.
-  - Selector Cache (`artifacts/cache/selector_cache.json`)와 Embedding Cache(`embedding_cache.json`) 재사용.
-  - Aggressive Text Matching → Semantic Matching(`text-embedding-3-small`) → Vision fallback 순으로 요소를 탐색.
-  - 부분 성공 판정을 위해 `skipped_steps` 비율을 추적해 4단계 상태(✅ SUCCESS / ⚠️ PARTIAL / ❌ FAILED / ⏭️ SKIPPED)를 리포트.
-- **LLM Vision Client**: GPT-5-mini Vision 호출, 150개 DOM 요소 제한, ARIA role 확장, 60초 타임아웃.
-- **Playwright MCP Host**:
-  - FastAPI + Playwright로 Chromium 제어.
-  - Hash 내비게이션 실패 시 버튼 클릭으로 자동 복구(예: Figma Sites).
-  - ARIA role 확장, lenient opacity(>0.1) 체크, DOM 150개 수집.
+## 🛠️ 기술 스택
 
-### Tracking, GUI & Reporting
-- **Checklist Tracker**: 시나리오에서 참조된 체크리스트 항목을 실시간으로 마킹.
-- **PySide6 GUI**:
-  - 실시간 로그 하이라이팅, 스크린샷/DOM 업데이트, SVG 커서 오버레이.
-  - Smart Navigation 이벤트, Scroll, Vision fallback 등 주요 이벤트를 즉시 렌더 (`QCoreApplication.processEvents()`로 UI 렉 방지).
-- **Phase5 Report (WIP)**: 실행 결과를 요약해 회귀 테스트 보고서로 활용 예정.
+### AI & 백엔드 (장진형)
+- **언어**: Python
+- **AI/ML**: Google Gemini API, LangChain, Prompt Engineering
+- **프레임워크**: FastAPI / Flask
 
-## Intelligent Capabilities & 안정성
-- **페이지-요소 메모리**: 최대 4개 페이지의 내비게이션 요소를 저장하고 다른 페이지에서 자동 탐색.
-- **Aggressive Text Matching**: DOM을 분석하기 전 step description에서 한/영 키워드를 모두 추출해 현재 페이지 요소부터 검색.
-- **Semantic Matching + Embedding Cache**: `text-embedding-3-small` + 로컬 fallback으로 시맨틱 유사도를 계산하고, 일치 시 LLM 검증.
-- **Selector Cache**: 동일한 스텝이 재실행될 때 LLM 호출을 생략해 최대 70%까지 실행 시간을 단축.
-- **Hash Navigation Recovery**: Hash 이동 후 DOM 카운트가 비정상적으로 낮으면 홈으로 돌아가 버튼 클릭을 시도해 SPA 콘텐츠를 다시 로드.
-- **Explicit Selector Fallback**: 플랜에 기재된 셀렉터가 실패하면 자동으로 LLM 분석으로 전환해 시나리오를 살린다.
-- **4-Tier Result Reporting**: 스킵률을 기반으로 PASS와 PARTIAL을 구분해 투자자 데모에서 정직한 결과를 제공한다.
+### 프론트엔드 / 데스크톱 앱 (변영승)
+- **프레임워크**: Electron
+- **언어**: JavaScript / TypeScript
+- **뷰 레이어**: React / Vue.js
 
-## 실행 방법
+### 인프라 & 데브옵스 (심창완)
+- **클라우드**: AWS / GCP
+- **CI/CD**: GitHub Actions
+- **아키텍처**: System Design, Network
 
-### 1. 환경 준비
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r gaia/requirements.txt
-playwright install chromium
-```
+### 자동화 엔진 (박기주)
+- **프레임워크**: Playwright (or Selenium)
+- **언어**: Node.js (TypeScript)
+- **하위 모듈**: Screen Capture, DOM Analysis
 
-### 2. 필수 환경 변수
-- `OPENAI_API_KEY`: 필수.
-- `GAIA_LLM_MODEL`, `GAIA_LLM_REASONING_EFFORT`, `GAIA_LLM_VERBOSITY`: Planner 튜닝.
-- `GAIA_WORKFLOW_ID`, `GAIA_WORKFLOW_VERSION`: Agent Builder 워크플로 선택.
-- `MCP_HOST_URL` (기본 `http://localhost:8001`), `MCP_TIMEOUT`.
+## 🏗️ 아키텍처 개요
 
-`.env` 예시:
-```env
-OPENAI_API_KEY=sk-xxx
-GAIA_WORKFLOW_ID=wf_68ea589f...
-GAIA_LLM_MODEL=gpt-4o
-MCP_HOST_URL=http://localhost:8001
-```
+GAIA는 '클라우드-엣지' 분산 아키텍처를 따릅니다:
 
-### 3. 실행 플로우
-터미널 1: Playwright MCP Host
-```bash
-./scripts/run_mcp_host.sh
-```
+- **클라우드 (두뇌 🧠)**: 무거운 AI 연산(기획서 분석, 전략 수립)을 담당하는 중앙 서버
+- **엣지 (손발 🦾)**: 사용자 PC에 설치되는 데스크톱 에이전트로, 클라우드로부터 명령을 받아 실제 브라우저를 제어하고 결과를 보고
 
-터미널 2: PySide6 GUI
-```bash
-./scripts/run_gui.sh
-```
+이 구조는 사용자 PC의 리소스를 최소한으로 사용하면서, 강력한 AI의 분석 능력을 최대한으로 활용하기 위해 설계되었습니다.
 
-CLI로 전체 파이프라인 실행:
-```bash
-python run_auto_test.py --url https://example.com --spec artifacts/spec.pdf
-```
+## 📖 사용법
 
-과거 플랜 재사용 시 GUI의 “이전 테스트 불러오기”로 `artifacts/plans/*.json`을 선택하면 PDF 분석 없이 즉시 실행한다.
-
-## 워크스페이스 구조
-```
-gaia/
-├── src/
-│   ├── phase1/                # PDF 분석 + Agent Builder 연동
-│   ├── scheduler/             # 적응형 스케줄러와 상태 머신
-│   ├── phase4/
-│   │   ├── master_orchestrator.py    # GPT-5 사이트 맵 탐색
-│   │   ├── intelligent_orchestrator.py # GPT-5-mini 실행기 + 캐시
-│   │   ├── llm_vision_client.py      # Vision/selector LLM 래퍼
-│   │   └── mcp_host.py               # FastAPI + Playwright MCP
-│   ├── tracker/               # Checklist 커버리지 트래커
-│   ├── gui/                   # PySide6 GUI, 워커 스레드
-│   ├── phase5/                # 리포트/요약 유틸 (WIP)
-│   ├── utils/                 # 설정/데이터 모델 (Pydantic)
-│   └── orchestrator.py        # CLI 오케스트레이터
-├── artifacts/
-│   ├── cache/                 # selector_cache.json, embedding_cache.json
-│   └── plans/                 # Planner 출력 저장본
-├── scripts/                   # run_mcp_host.sh, run_gui.sh 등
-├── tests/                     # Pytest (planner, scheduler, orchestration)
-├── run_auto_test.py           # 풀 파이프라인 실행 스크립트
-└── README.md
-```
-
-## 테스트 & 자동화
-```bash
-pytest gaia/tests
-python test_scheduler_logic.py      # 스케줄러 로직 단독 검증
-python test_automation.py           # 단순 시나리오 실행기
-python run_local_test.py            # 로컬 UI 테스트 사이트용 데모
-```
-
-## 문서 & 진행 관리
-- `gaia/docs/PROJECT_CONTEXT.md`: 전체 프로젝트 배경 및 목표.
-- `gaia/docs/PROGRESS.md`: 주차별 진행 로그.
-- `gaia/docs/IMPLEMENTATION_GUIDE.md`: 환경 구성, 모듈 간 의존성, 다음 단계 메모.
-- `ADAPTIVE_SCHEDULER_SUMMARY.md`, `VERIFICATION_REPORT.md`: 스케줄러/검증 관련 요약.
-- `artifacts/plans/*.json`: QA 데모/회귀 테스트용 고정 플랜.
-
----
-GAIA는 “학생/초기 팀도 버튼 몇 번이면 회귀 테스트를 돌릴 수 있는” QA 파이프라인을 목표로 계속 진화하고 있다. 새로운 기능을 추가할 때는 `docs/PROGRESS.md`를 업데이트하고, 캐시 구조 변경 시 `artifacts/cache` 포맷을 함께 기록해 주세요.
-
+1. **기획서 업로드**: PDF 형태의 기획서를 업로드하거나 자연어로 테스트 목표를 입력합니다.
+2. **AI 분석**: GAIA가 문서를 분석하여 테스트 시나리오를 자동 생성합니다.
+3. **테스트 실행**: 생성된 시나리오를 바탕으로 자동화된 테스트가 실행됩니다.
+4. **결과 확인**: 하이브리드 검증 결과를 시각적으로 확인하고 리포트를 다운로드합니다.
